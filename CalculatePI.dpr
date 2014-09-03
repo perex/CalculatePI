@@ -5,38 +5,30 @@ program CalculatePI;
 {$R *.res}
 
 uses
-  System.SysUtils, System.Diagnostics, System.Threading, System.Classes;
-
+  System.SysUtils,
+  System.Diagnostics,
+  System.Threading,
+  System.Classes,
+  System.Math,
+  System.SyncObjs,
+  System.Generics.Collections;
 
 const
-  num_steps = 10000000;
+  num_steps = 100;//000; //000;
   kOutput = False;
 
 var
-  sum_parallel: Double;
   Timer: TStopwatch;
   FACount: array of array of Double;
   I: Integer;
-
-threadvar
   local: Double;
 
-(*function SerialPI: Double;
-var
-  I: Integer;
-  sum, step, x: Double;
-begin
-  sum := 0.0;
-  step := 1.0 / num_steps;
+threadvar
+//
+  sum_parallel: Double;
 
-  for I := 0 to num_steps-1 do
-    begin
-      x := (I + 0.5) * step;
-      sum := sum + (4.0 / (1.0 + x * x));
-    end;
-  Result := step * sum;
-end;
-*)
+
+
 // 4 * ( -1.0 / 3.0 + 1.0/5.0 - 1.0/7.0 + 1.0/9.0 - 1.0/11.0 ... )
 (*private static double CalculatePi(int iterations)
 {
@@ -51,7 +43,7 @@ return pi*4.0;
 }
 *)
 // 4 * ( -1.0 / 3.0 + 1.0/5.0 - 1.0/7.0 + 1.0/9.0 - 1.0/11.0 ... )
-function SerialPI: Double;
+(*function SerialPI: Double;
 var
   I: Integer;
   pi, multiplier: Double;
@@ -68,7 +60,7 @@ begin
   end;
   Result := pi * 4.0;
 end;
-
+*)
 procedure MyWriteln(mystring: String);
 begin
   if kOutput then
@@ -84,6 +76,22 @@ begin
   //Result := (iteration + 0.5) * step;
 end;
 
+function SerialPI: Double;
+var
+  I: Integer;
+  sum, step, x: Double;
+begin
+  sum := 0.0;
+  step := 1.0 / num_steps;
+
+  for I := 0 to num_steps-1 do
+    begin
+      x := (I + 0.5) * step;
+      sum := sum + (4.0 / (1.0 + x * x));
+      WriteLn(Format('%d;%0.15f;%0.15f',[I, x, sum]));
+    end;
+  Result := step * sum;
+end;
 
 function ParallelPI: Double;
 var
@@ -92,34 +100,41 @@ var
   LoopResult : TParallel.TLoopResult;
   AHighExclusive: Integer;
   pi : Double;
+  Results: TDictionary<Cardinal,Double>;
 begin
+  Results := TDictionary<Cardinal,Double>.Create;
   sum_parallel := 0.0;
   step := 1.0 / num_steps;
   FLock := TObject.Create;
   local := 0.0;
 
   //TParallel.&For(ALowInclusive, AHighExclusive: Integer; const AIteratorEvent: TProc<Integer, TLoopState>): TLoopResult;
-
+  WriteLn('I;CurrentThread;Values;local;sum_parallel');
   TParallel.&For(
     0,
     num_steps+1,
     procedure (I: Integer)
       var
         x: Double;
+        aa: Cardinal;
       begin
-        //MyWriteln('I = ' + I.ToString());
-        //MyWriteln('local = ' + local.ToString());
-        //local := calculate(I, step);
-        //x := (I + 0.5) * step;
+        aa := TThread.CurrentThread.Handle;
 
         x := (I + 0.5) * step;
-        local := (local + 4.0) / (1.0 + (x * x));
+        local := local + 4.0 / (1.0 + (x * x));
 
         TMonitor.Enter(FLock);
         try
-          //MyWriteln('-------------INSIDE TMONITOR');
+          if Results.ContainsKey(aa) then
+            Results.Items[aa] := local
+          else
+            Results.Add(aa, local);
+
+          //WriteLn(Format('I=%d;CurrentThread=%d;Value=%0.15f',[I,aa, Results.Items[aa]]));
           sum_parallel := sum_parallel + local;
           //MyWriteln('  sum_parallel = ' + sum_parallel.ToString());
+          //WriteLn(Format('local=%0.15f;sum_parallel=%0.15f',[local, sum_parallel]));
+          WriteLn(Format('%d;%0.15f;%d;%0.15f;%0.15f;%0.15f',[I, x, aa, Results.Items[aa], local,sum_parallel]));
         finally
           TMonitor.Exit(FLock);
         end;
@@ -162,87 +177,26 @@ begin
    *)
 end;
 
-
-(*function TCalculatePIThread.CalculateParallelPI: Double;
-var
-  step: Double;
-  FLock : TObject;
-  cont: Integer;
-  currentTask : TParallel.ITask;
-begin
-  sum_parallel := 0.0;
-  step := 1.0 / num_steps;
-  FLock := TObject.Create;
-  local := 0.0;
-  cont := 0;
-
-  //TParallel.&For(ALowInclusive, AHighExclusive: Integer; const AIteratorEvent: TProc<Integer, TLoopState>): TLoopResult;
-
-
-  TParallel.&For(
-    0,
-    num_steps,
-    procedure (I: Integer)
-      var
-        x : Double;
-      begin
-        MyWriteln('I = ' + I.ToString());
-        MyWriteln('local = ' + local.ToString());
-        x := (I + 0.5) * step;
-//        Self.FCount[I] := (Self.FCount[I] + 4.0) / (1.0 + (x * x));
-        //Self.FCount[cont] := (Self.FCount[cont] + 4.0) / (1.0 + (x * x));
-
-//        if not Assigned(FACount[cont, cont]) then
-  //      begin
-           currentTask := TParallel.CurrentTask;
-           FACount[cont,0] := CurrentThread.ThreadID.ToDouble; //TThreadPool.TQueueWorkerThread.WorkerThreadID; //;
-           FACount[cont,1] := (local + 4.0) / (1.0 + (x * x));;
-           Inc(cont);
-    //    end;
-
-
-        //FACount[cont] :=   (FACount[cont] + 4.0) / (1.0 + (x * x));
-        local:= (local + 4.0) / (1.0 + (x * x));
-        //sum_parallel := sum_parallel + FACount[I];
-        //local := (local + 4.0) / (1.0 + (x * x));
-        //Synchronize(Actualiza_texto);
-
-        TMonitor.Enter(FLock);
-        try
-          MyWriteln('-------------INSIDE TMONITOR');
-          //sum_parallel := sum_parallel + Self.FCount[I];
-          sum_parallel := sum_parallel + local;
-          //sum_parallel := sum_parallel + FResult;
-//          Inc(cont);
-          MyWriteln('  sum_parallel = ' + sum_parallel.ToString());
-        finally
-          TMonitor.Exit(FLock);
-        end;
-      end);
-   Result := step * sum_parallel;
-
-end;
-*)
-
 begin
 
   Timer := TStopWatch.Create() ;
   try
     Timer.Start;
-    Write('SerialPI: ');
+    Writeln('SerialPI: ');
     Write(Format('%10e', [SerialPI]));
     Timer.Stop;
     Writeln(' Time: ' + Timer.ElapsedMilliseconds.ToString() + ' milliseconds');
     //Writeln(' Time: ' + Timer.Elapsed.Seconds.ToString() + ' seconds');
 
     Timer.StartNew;
-    Write('Parallel: ');
+    //Write('Parallel: ');
     Write(Format('%10e', [ParallelPI]));
+    //ParallelPI;
     Timer.Stop;
     //Writeln(' Time: ' + Timer.Elapsed.Seconds.ToString() + ' seconds');
-    Writeln(' Time: ' + Timer.ElapsedMilliseconds.ToString() + ' milliseconds');
+    //Writeln(' Time: ' + Timer.ElapsedMilliseconds.ToString() + ' milliseconds');
 
-    Readln;
+    //Readln;
   except
     on E: Exception do
       Writeln(E.ClassName, ': ', E.Message);
