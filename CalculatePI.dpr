@@ -14,7 +14,7 @@ uses
   System.Generics.Collections;
 
 const
-  num_steps = 100;//000; //000;
+  num_steps = 10;//000; //000;
   kOutput = False;
 
 var
@@ -109,10 +109,10 @@ begin
   local := 0.0;
 
   //TParallel.&For(ALowInclusive, AHighExclusive: Integer; const AIteratorEvent: TProc<Integer, TLoopState>): TLoopResult;
-  WriteLn('I;CurrentThread;Values;local;sum_parallel');
+  WriteLn('I;CurrentThread;Results.Items[aa];local;sum_parallel');
   TParallel.&For(
     0,
-    num_steps+1,
+    num_steps-1,
     procedure (I: Integer)
       var
         x: Double;
@@ -140,7 +140,8 @@ begin
         end;
       end
     );
-   Result := step * sum_parallel;
+//   Result := step * sum_parallel;
+   Result := step * local;
 
 (*   pi := 1;
 
